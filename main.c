@@ -22,10 +22,16 @@ enum token_kind {
     EQUAL,
     PLUS,
     LESS_THAN,
-    INVALID
+    INVALID,
+    END
 };
 
-const char *show_token(enum token_kind kind) {
+struct token {
+    enum token_kind kind;
+    char *value;
+};
+
+const char *show_token_kind(enum token_kind kind) {
     switch(kind) {
         case IDENT: 
             return "ident";
@@ -51,7 +57,18 @@ const char *show_token(enum token_kind kind) {
             return "less_than";
         case INVALID:
             return "invalid";
+        case END:
+            return "end";
     }
+}
+
+void print_token(struct token tok) {
+    const char *kind = show_token_kind(tok.kind);
+    printf("%s", kind);
+    if (tok.value != NULL) {
+        printf("(%s)", tok.value);
+    }
+    printf("\n");
 }
 
 struct lexer {
@@ -92,9 +109,112 @@ static void skip_whitespaces(struct lexer *l) {
     }
 }
 
+static void lexer_init(struct lexer *l, char *buffer, unsigned int buffer_len) {
+    l->buffer = buffer;
+    l->buffer_len = buffer_len;
+    l->pos = 0;
+    l->read_pos = 0;
+    l->ch = 0;
+
+    lexer_read_char(l);
+}
+
+static struct token lexer_next_token(struct lexer *l) {
+    skip_whitespaces(l);
+
+
+    if (l->ch == EOF) {
+        lexer_read_char(l);
+        return (struct token){.kind = END, .value = NULL};
+    } else if (l->ch == '=') {
+        lexer_read_char(l);
+        return (struct token){.kind = EQUAL, .value = NULL};
+    } else if (l->ch == '+') {
+        lexer_read_char(l);
+        return (struct token){.kind = PLUS, .value = NULL};
+    } else if (l->ch == '<') {
+        lexer_read_char(l);
+        return (struct token){.kind = LESS_THAN, .value=NULL};
+    } else if (l->ch == ':') {
+        // read until end
+        lexer_read_char(l); // skip the colon
+        ds_string_slice slice = {.str = l->buffer + l->pos, .len = 0};
+        while (isalnum(l->ch) || l->ch == '_') {
+            slice.len += 1;
+            lexer_read_char(l);
+        }
+        char *value = NULL;
+        ds_string_slice_to_owned(&slice, &value);
+        return (struct token){.kind = LABEL, .value = value};
+    } else if (isdigit(l->ch)) {
+        // read until end
+        ds_string_slice slice = {.str = l->buffer + l->pos, .len = 0};
+        while (isdigit(l)) {
+            slice.len += 1;
+            lexer_read_char(l);
+        }
+        char *value = NULL;
+        ds_string_slice_to_owned(&slice, &value);
+        return (struct token){.kind = INT, .value = value};
+    } else if (isalnum(l->ch) || l->ch == '_') {
+        // starts with letter or _
+        ds_string_slice slice = {.str = l->buffer + l->pos, .len = 0};
+        while (isalnum(l->ch) || l->ch == '_') {
+            slice.len += 1;
+            lexer_read_char(l);
+        }
+        char *value = NULL;
+        ds_string_slice_to_owned(&slice, &value);
+        if (strcmp(value, "input") == 0) {
+            return (struct token){.kind = INPUT, .value = NULL};
+        } else if (strcmp(value, "output") == 0) {
+            return (struct token){.kind = OUTPUT, .value = NULL};
+        } else if (strcmp(value, "goto") == 0) {
+            return (struct token){.kind = GOTO, .value = NULL};
+        } else if (strcmp(value, "if") == 0) {
+            return (struct token){.kind = IF, .value = NULL};
+        } else if (strcmp(value, "then") == 0) {
+            return (struct token){.kind = THEN, .value = NULL};
+        } else {
+            return (struct token){.kind = IDENT, .value = value};
+        }
+    } else {
+        ds_string_slice slice = {.str = l->buffer + l->pos, .len = 1};
+        char *value = NULL;
+        ds_string_slice_to_owned(&slice, &value);
+        lexer_read_char(l);
+        return (struct token){.kind = INVALID, .value = value};
+    }
+}
+
+int lexer_tokenize(char *buffer, unsigned int length, ds_dynamic_array *tokens) {
+    struct lexer lexer;
+    lexer_init(&lexer, (char *)buffer, length);
+
+    struct token tok;
+    do {
+        tok = lexer_next_token(&lexer);
+        if (ds_dynamic_array_append(tokens, &tok) != 0) {
+            DS_PANIC("Failed to append token to array");
+        }
+    } while (tok.kind != END);
+
+    return 0;
+}
+
 int main() {
     char *buffer = NULL;
-    ds_io_read_file(NULL, &buffer);
+    int length = ds_io_read_file(NULL, &buffer);
+
+    ds_dynamic_array tokens;
+    ds_dynamic_array_init(&tokens, sizeof(struct token));
+
+    lexer_tokenize(buffer, length, &tokens);
+    for (unsigned int i = 0; i < tokens.count; i++) {
+        struct token tok;
+        ds_dynamic_array_get(&tokens, i, &tok);
+        print_token(tok);
+    }
 
     printf("%s\n", buffer);
     return 0;
