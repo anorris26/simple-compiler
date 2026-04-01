@@ -6,6 +6,7 @@ https://www.youtube.com/watch?v=HOe2YFnzO2I
 
 #include <stdio.h>
 #define DS_IO_IMPLEMENTATION
+#define DS_SS_IMPLEMENTATION
 #include "ds.h"
 #include <string.h>
 #include <ctype.h>
@@ -149,7 +150,7 @@ static struct token lexer_next_token(struct lexer *l) {
     } else if (isdigit(l->ch)) {
         // read until end
         ds_string_slice slice = {.str = l->buffer + l->pos, .len = 0};
-        while (isdigit(l)) {
+        while (isdigit(l->ch)) {
             slice.len += 1;
             lexer_read_char(l);
         }
