@@ -7,6 +7,8 @@ https://www.youtube.com/watch?v=HOe2YFnzO2I
 #include <stdio.h>
 #define DS_IO_IMPLEMENTATION
 #include "ds.h"
+#include <string.h>
+#include <ctype.h>
 
 enum token_kind {
     IDENT,
@@ -72,6 +74,9 @@ static char lexer_peek_char(struct lexer *l) {
     return l->buffer[l->read_pos];
 }
 
+/*
+advance buffer and returns the current char
+*/
 static char lexer_read_char(struct lexer *l) {
     l->ch = lexer_peek_char(l);
 
@@ -79,6 +84,12 @@ static char lexer_read_char(struct lexer *l) {
     l->read_pos += 1;
 
     return l->ch;
+}
+
+static void skip_whitespaces(struct lexer *l) {
+    while (isspace(l->ch)) {
+        lexer_read_char(l);
+    }
 }
 
 int main() {
